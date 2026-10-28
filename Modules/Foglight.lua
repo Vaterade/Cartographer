@@ -97,7 +97,7 @@ local ImportedMapOverlayData = {
     ["TelAbim"] = { "BIXXLESSTOREHOUSE:300:127:368:178", "HIGHVALERISE:191:187:468:248", "TAZZOSSHACK:229:232:453:391", "TELCOBASECAMP:184:183:342:440", "THEDERELICTCAMP:165:205:364:273", "THEJAGGEDISLES:313:256:385:16", },
     ["ThalassianHighlands"] = { "ALAHTHALAS:470:276:429:38", "ANASTERIANPARK:229:219:385:256", "BRINTHILIEN:180:211:395:450", "FELSTRIDERRETREAT:201:207:165:428", "ISLEOFETERNALAUTUMN:204:167:236:117", "RUINSOFNASHALARAN:249:266:36:151", "SILVERSUNMINE:208:189:288:373", "THEFARSTRIDE:230:199:212:255", "THELASTRUNESTONE:179:203:507:379", },
   }
-function ConvertImportedDataToErrata()
+local function ConvertImportedDataToErrata()
     local newErrata = {}
     
     for zoneName, overlays in pairs(ImportedMapOverlayData) do
@@ -817,35 +817,54 @@ function Cartographer_Foglight:WorldMapFrame_Update()
 end
 
 local discovered = {}
-function Cartographer_Foglight:WorldMapFrame_UpdateOverlays()
-	if not WorldMapFrame:IsShown() then
-		return
+
+-- returns WorldMapOverlay<index>, creating textures past Blizzard's pool as needed
+local function getOverlayTexture(index)
+	if index > NUM_WORLDMAP_OVERLAYS then
+		for j = NUM_WORLDMAP_OVERLAYS+1, index do
+			WorldMapDetailFrame:CreateTexture("WorldMapOverlay"..j, "ARTWORK")
+		end
+		NUM_WORLDMAP_OVERLAYS = index
 	end
-	
-	local mapFileName, textureHeight = GetMapInfo()
-	if not mapFileName then
-		return
+	return _G["WorldMapOverlay"..index]
+end
+
+local function shadeOverlayTexture(self, texture, isDiscovered)
+	if isDiscovered then
+		texture:SetVertexColor(1.0,1.0,1.0)
+		texture:SetAlpha(1.0)
+	else
+		texture:SetVertexColor(self.db.profile.darkR, self.db.profile.darkG, self.db.profile.darkB)
+		texture:SetAlpha(self.db.profile.darkA)
 	end
-	
-	local prefix = "Interface\\WorldMap\\"..mapFileName.."\\"
-	local zoneTable = self.overlayInfo[mapFileName]
-	
-	local numOverlays = self.hooks.GetNumMapOverlays()
-	local len = string.len(prefix)+1
-	for i=1, numOverlays do
-		local tname,tw,th,ofx,ofy = GetMapOverlayInfo(i)
-		tname = string.sub(tname, len)
-		local num = tw + th * 1024 + ofx * 1048576 + ofy * 1073741824
-		discovered[tname] = num
-		zoneTable[tname] = num
-	end
-	
+	texture:Show()
+end
+
+-- ClassicAPI reads every overlay from the client's DBC, with tiles resolved from the actual art
+local function drawClientOverlays(self, overlays)
 	local textureCount = 0
-	
+	for _, overlay in ipairs(overlays) do
+		for _, tile in ipairs(overlay.tiles) do
+			textureCount = textureCount + 1
+			local texture = getOverlayTexture(textureCount)
+			texture:SetWidth(tile.width)
+			texture:SetHeight(tile.height)
+			texture:SetTexCoord(0, tile.texCoordX, 0, tile.texCoordY)
+			texture:ClearAllPoints()
+			texture:SetPoint("TOPLEFT", "WorldMapDetailFrame", "TOPLEFT", tile.offsetX, -tile.offsetY)
+			texture:SetTexture(tile.file)
+			shadeOverlayTexture(self, texture, discovered[overlay.textureName])
+		end
+	end
+	return textureCount
+end
+
+local function drawStoredOverlays(self, prefix, zoneTable)
+	local textureCount = 0
 	for tname, num in pairs(zoneTable) do
 		local textureName = prefix .. tname
 		local textureWidth, textureHeight, offsetX, offsetY = math_mod(num, 1024), math_mod(math_floor(num / 1024), 1024), math_mod(math_floor(num / 1048576), 1024), math_floor(num / 1073741824)
-		
+
 		-- HACK: override *known incorrect* data with hard-coded fixes.
 		if textureName == "Interface\\WorldMap\\Tirisfal\\BRIGHTWATERLAKE" then
 			if offsetX == 587 then
@@ -860,13 +879,6 @@ function Cartographer_Foglight:WorldMapFrame_UpdateOverlays()
 
 		local numTexturesWide = math_ceil(textureWidth / 256)
 		local numTexturesTall = math_ceil(textureHeight / 256)
-		local neededTextures = textureCount + numTexturesWide*numTexturesTall
-		if neededTextures > NUM_WORLDMAP_OVERLAYS then
-			for j = NUM_WORLDMAP_OVERLAYS+1, neededTextures do
-				WorldMapDetailFrame:CreateTexture("WorldMapOverlay"..j, "ARTWORK")
-			end
-			NUM_WORLDMAP_OVERLAYS = neededTextures
-		end
 		for j = 1, numTexturesTall do
 			local texturePixelHeight
 			local textureFileHeight
@@ -884,11 +896,10 @@ function Cartographer_Foglight:WorldMapFrame_UpdateOverlays()
 				end
 			end
 			for k = 1, numTexturesWide do
-				if textureCount > NUM_WORLDMAP_OVERLAYS then
-					return
-				end
 				textureCount = textureCount + 1
-				local texture = _G["WorldMapOverlay"..textureCount]
+				local texture = getOverlayTexture(textureCount)
+				local texturePixelWidth
+				local textureFileWidth
 				if k < numTexturesWide then
 					texturePixelWidth = 256
 					textureFileWidth = 256
@@ -908,18 +919,46 @@ function Cartographer_Foglight:WorldMapFrame_UpdateOverlays()
 				texture:ClearAllPoints()
 				texture:SetPoint("TOPLEFT", "WorldMapDetailFrame", "TOPLEFT", offsetX + (256 * (k-1)), -(offsetY + (256 * (j - 1))))
 				texture:SetTexture(textureName..(((j - 1) * numTexturesWide) + k))
-
-				if discovered[tname] then
-					texture:SetVertexColor(1.0,1.0,1.0)
-					texture:SetAlpha(1.0)
-				else
-					texture:SetVertexColor(self.db.profile.darkR, self.db.profile.darkG, self.db.profile.darkB)
-					texture:SetAlpha(self.db.profile.darkA)
-				end
-				texture:Show()
+				shadeOverlayTexture(self, texture, discovered[tname])
 			end
 		end
 	end
+	return textureCount
+end
+
+function Cartographer_Foglight:WorldMapFrame_UpdateOverlays()
+	if not WorldMapFrame:IsShown() then
+		return
+	end
+
+	local mapFileName, textureHeight = GetMapInfo()
+	if not mapFileName then
+		return
+	end
+
+	local prefix = "Interface\\WorldMap\\"..mapFileName.."\\"
+	local zoneTable = self.overlayInfo[mapFileName]
+
+	local numOverlays = self.hooks.GetNumMapOverlays()
+	local len = string.len(prefix)+1
+	for i=1, numOverlays do
+		local tname,tw,th,ofx,ofy = GetMapOverlayInfo(i)
+		tname = string.sub(tname, len)
+		local num = tw + th * 1024 + ofx * 1048576 + ofy * 1073741824
+		discovered[tname] = num
+		zoneTable[tname] = num
+	end
+
+	-- the stored table is the fallback for clients without ClassicAPI, and for maps it can't
+	-- resolve, such as a battleground shown by the Battlegrounds module
+	local clientOverlays = C_Map and C_Map.GetMapOverlays and C_Map.GetMapOverlays()
+	local textureCount
+	if clientOverlays and clientOverlays[1] then
+		textureCount = drawClientOverlays(self, clientOverlays)
+	else
+		textureCount = drawStoredOverlays(self, prefix, zoneTable)
+	end
+
 	for i = textureCount+1, NUM_WORLDMAP_OVERLAYS do
 		_G["WorldMapOverlay"..i]:Hide()
 	end
