@@ -487,7 +487,7 @@ function Cartographer_Notes:OnEnable()
 	WorldMapFlag1:SetScript("OnMouseUp", func)
 	WorldMapFlag2:SetScript("OnMouseUp", func)
 	WorldMapCorpse:SetScript("OnMouseUp", func)
-	if lua51 then
+	if WorldMapDeathRelease then
 		WorldMapDeathRelease:SetScript("OnMouseUp", func)
 	end
 	
@@ -512,7 +512,7 @@ function Cartographer_Notes:OnDisable()
 	WorldMapFlag1:SetScript("OnMouseUp", nil)
 	WorldMapFlag2:SetScript("OnMouseUp", nil)
 	WorldMapCorpse:SetScript("OnMouseUp", nil)
-	if lua51 then
+	if WorldMapDeathRelease then
 		WorldMapDeathRelease:SetScript("OnMouseUp", nil)
 	end
 end
@@ -524,11 +524,13 @@ Cartographer_Notes.OnCommReceive = {
 			return
 		end
 		
+		local fullSender = distribution == "GUILD" and string.format(L["%s from Guild"], sender) or distribution == "RAID" and string.format(L["%s from Raid"], sender) or distribution == "PARTY" and string.format(L["%s from Party"], sender) or sender
+
 		if not BZ:HasTranslation(zone) then
 			self:Print(L["Error: %s sent you a note with an unknown zone: %q"], fullSender, zone)
 			return
 		end
-		
+
 		local usingDB = self.externalDBs[creator] and creator or nil
 		if creator and not usingDB and type(data) == "string" then
 			data = {
@@ -537,8 +539,7 @@ Cartographer_Notes.OnCommReceive = {
 				creator = creator
 			}
 		end
-		
-		local fullSender = distribution == "GUILD" and string.format(L["%s from Guild"], sender) or distribution == "RAID" and string.format(L["%s from Raid"], sender) or distribution == "PARTY" and string.format(L["%s from Party"], sender) or sender
+
 		x, y = x/1000, y/1000
 		local id = getID(x, y)
 		local poi_data, db = getrawpoi(zone, id)
@@ -554,6 +555,7 @@ Cartographer_Notes.OnCommReceive = {
 }
 
 function Cartographer_Notes:InstanceWorldMapButton_OnClick(frame, a1)
+	local mouseButton = a1 or arg1
 	if mouseButton ~= "RightButton" or (not IsControlKeyDown() and (not self.developing or not IsAltKeyDown())) then
 		return self.hooks[frame].OnClick(frame, a1)
 	end

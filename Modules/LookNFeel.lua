@@ -348,7 +348,7 @@ function Cartographer_LookNFeel:OnEnable()
 	self:RegisterEvent("Cartographer_ChangeZone")
 	self:RegisterEvent("MODIFIER_STATE_CHANGED")
 	self:SecureHook("WorldMapButton_OnUpdate")
-	self:Hook(lua51 and "CloseSpecialWindows" or "CloseWindows", true)
+	self:Hook(CloseSpecialWindows and "CloseSpecialWindows" or "CloseWindows", true)
 	if not self.overlayHolder then
 		self.overlayHolder = CreateFrame("Frame", "CartographerLookNFeelOverlayHolder", WorldMapDetailFrame)
 		self.overlayHolder:SetPoint("TOPLEFT", WorldMapDetailFrame, "TOPLEFT")
@@ -484,7 +484,7 @@ function Cartographer_LookNFeel:WorldMapButton_OnUpdate()
 	WorldMapPlayer:SetScale(1)
 end
 
-if lua51 then
+if CloseSpecialWindows then
 	function Cartographer_LookNFeel:CloseSpecialWindows()
 		local found = self.hooks.CloseSpecialWindows()
 		if self.db.profile.useEscape then

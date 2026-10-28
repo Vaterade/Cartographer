@@ -326,7 +326,8 @@ function Cartographer:GetCurrentEnglishZoneName()
 	end
 	local z = mapZones[GetCurrentMapContinent()][GetCurrentMapZone()]
 	if z then
-		return z
+		-- Turtle zones missing from Babble-Zone have no translation; use the client's name for them
+		return BZ:HasReverseTranslation(z) and BZ:GetReverseTranslation(z) or z
 	else
 		local map = GetMapInfo()
 		if map == "WarsongGulch" then
