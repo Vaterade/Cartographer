@@ -39,6 +39,22 @@ local lua51 = loadstring("return function(...) return ... end") and true or fals
 
 local table_setn = lua51 and function() end or table.setn
 
+-- pfUI-locplus has level ranges for Turtle zones that Tourist doesn't know
+local function getLocPlusInfo(zone)
+	if not LibLocPlus or not LibLocPlus.GetZoneInformation then
+		return nil
+	end
+	local info = LibLocPlus:GetZoneInformation(zone)
+	if info and info.MinLevelRange and info.MaxLevelRange then
+		return info
+	end
+end
+
+local function colorCodeToRGB(color)
+	local _, _, r, g, b = string.find(color, "^|cff(%x%x)(%x%x)(%x%x)")
+	return tonumber(r, 16) / 255, tonumber(g, 16) / 255, tonumber(b, 16) / 255
+end
+
 function Cartographer_ZoneInfo:OnInitialize()
 	self.name = L["Zone Info"]
 	self.title = L["Zone Info"]
@@ -108,6 +124,7 @@ function Cartographer_ZoneInfo.OnUpdate()
 			return
 		end
 	end
+	local locPlusInfo = zone and getLocPlusInfo(zone)
 	if not zone or not Tourist:IsZoneOrInstance(zone) then
 		zone = WorldMapFrame.areaName
 	end
@@ -174,6 +191,26 @@ function Cartographer_ZoneInfo.OnUpdate()
 			lastZone = nil
 			self.frame.text:SetText("")
 		end
+	elseif locPlusInfo then
+		local low, high = locPlusInfo.MinLevelRange, locPlusInfo.MaxLevelRange
+		local levelColor = LibLocPlus:GetZoneLevelRangeColor(low, high)
+		local levelText
+		if low == high then
+			levelText = string.format(" %s[%d]|r", levelColor, high)
+		else
+			levelText = string.format(" %s[%d-%d]|r", levelColor, low, high)
+		end
+		local r, g, b = colorCodeToRGB(LibLocPlus:GetColorFromZoneStatus(locPlusInfo.Status))
+		if not underAttack then
+			WorldMapFrameAreaLabel:SetTextColor(r, g, b)
+			WorldMapFrameAreaDescription:SetTextColor(1, 1, 1)
+			WorldMapFrameAreaLabel:SetText(string.gsub(WorldMapFrameAreaLabel:GetText(), " |cff.+$", "") .. levelText)
+		else
+			WorldMapFrameAreaDescription:SetTextColor(r, g, b)
+			WorldMapFrameAreaDescription:SetText(string.gsub(WorldMapFrameAreaDescription:GetText(), " |cff.+$", "") .. levelText)
+		end
+		lastZone = nil
+		self.frame.text:SetText("")
 	elseif not zone then
 		lastZone = nil
 		self.frame.text:SetText("")
