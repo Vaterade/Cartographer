@@ -6,6 +6,7 @@ Added twow 1.18.1 zone foglight
 --
 
 Fork of vanilla **Cartographer** for 1.12.1 which adds compatibility with custom zones of TurtleWoW.
+Based on [Redbu11dev/Cartographer](https://github.com/Redbu11dev/Cartographer); its history is on the `master` branch here.
 
 ## Installation
 
