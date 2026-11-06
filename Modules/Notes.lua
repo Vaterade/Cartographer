@@ -1457,7 +1457,7 @@ do
 												'tooltipText', L["Note: This may be blocked by Blizzard's spam filter and cause problems. It is recommended to send to your party/raid/guild instead."],
 												'hasArrow', true,
 												'hasEditBox', true,
-												'editBoxText', UnitExists("target") and UnitIsPlayer("target") and UnitIsFriendly("target") and UnitName("target") or nil,
+												'editBoxText', UnitExists("target") and UnitIsPlayer("target") and UnitIsFriend("player", "target") and UnitName("target") or nil,
 												'editBoxFunc', sendNoteToPlayerFunc,
 												'editBoxValidateFunc', sendNoteToPlayerValidate
 											)
